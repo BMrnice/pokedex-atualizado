@@ -18,3 +18,52 @@ const getTypeColor = type => {
     fighting: '#E6E0D4'
   }[type] || normal
 }
+
+const getOnlyFulfilled = async ({ func, arr }) => {
+  const promises = arr.map(func)
+  const responses =  await Promise.allSettled(promises)
+  return responses.filter(response => response.status === 'fulfilled')
+}
+
+const getPokemonsIds = pokeApiResults => pokeApiResults.map(({ url }) =>{
+  const urlAsArray = url.split('/')
+  return urlAsArray.at(urlAsArray.length - 2)
+  //console.log(urlAsArray)
+});
+
+const getPokemonsImgs = async ids => {
+  const fulfilled = await getOnlyFulfilled({ arr:ids, func:id => fetch(`./assets/img/${id}.png`)  })
+  return fulfilled.map(response => response.value.url)
+}
+
+const getPokemonsTypes = async pokeApiResults => {
+  
+  const fulfilled = await getOnlyFulfilled({ arr:pokeApiResults, func: result =>fetch(result.url) })
+  const pokePromises = fulfilled.map(url => url.value.json())
+  const pokemons = await Promise.all(pokePromises)
+   return pokemons.map(fulfilled => fulfilled.types.map(info => info.type.name))
+}
+const handlePageLoaded = async () => {
+  try {
+    const response = await fetch ('https://pokeapi.co/api/v2/pokemon?limit=16&offset=0')
+
+    if(!response.ok){
+      throw Error('fudeu')
+    }
+    
+    const { results: pokeApiResults } = await response.json()
+    const types = await getPokemonsTypes(pokeApiResults)
+    const ids = getPokemonsIds(pokeApiResults)
+    const imgs = await getPokemonsImgs(ids)
+    const pokemons = ids.map((id, i)) => ({id, name: pokeApiResults[i].name, types: types[i], imgUrl: img[i]})
+
+    console.log(pokemons)
+
+  } catch (error) {
+
+    console.log('hande page loaded', error)
+  }
+  
+};
+
+handlePageLoaded();
