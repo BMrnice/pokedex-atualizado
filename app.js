@@ -26,9 +26,10 @@ const getOnlyFulfilled = async ({ func, arr }) => {
 }
 
 const getPokemonsIds = pokeApiResults => pokeApiResults.map(({ url }) =>{
-  const urlAsArray = url.split('/')
+  const urlAsArray = DOMPurify.sanitize(url).split('/')
+  
   return urlAsArray.at(urlAsArray.length - 2)
-  //console.log(urlAsArray)
+  
 });
 
 const getPokemonsImgs = async ids => {
@@ -41,28 +42,88 @@ const getPokemonsTypes = async pokeApiResults => {
   const fulfilled = await getOnlyFulfilled({ arr:pokeApiResults, func: result =>fetch(result.url) })
   const pokePromises = fulfilled.map(url => url.value.json())
   const pokemons = await Promise.all(pokePromises)
-   return pokemons.map(fulfilled => fulfilled.types.map(info => info.type.name))
+   return pokemons.map(fulfilled => fulfilled.types.map(info => DOMPurify.sanitize(info.type.name)))
 }
-const handlePageLoaded = async () => {
+
+const limit = 15
+let offset =  0
+const getPokemons = async url => {
   try {
-    const response = await fetch ('https://pokeapi.co/api/v2/pokemon?limit=16&offset=0')
+    const response = await fetch (`https://pokeapi.co/api/v2/pokemon?limit=${limit}&offset=${offset}`)
 
     if(!response.ok){
-      throw Error('fudeu')
+      throw new Error('fudeu')
     }
     
     const { results: pokeApiResults } = await response.json()
     const types = await getPokemonsTypes(pokeApiResults)
     const ids = getPokemonsIds(pokeApiResults)
     const imgs = await getPokemonsImgs(ids)
-    const pokemons = ids.map((id, i)) => ({id, name: pokeApiResults[i].name, types: types[i], imgUrl: img[i]})
-
-    console.log(pokemons)
+    const pokemons = ids.map((id, i)=>  ({id, name: pokeApiResults[i].name, types: types[i], imgUrl: imgs[i]}))
+  
+    offset += limit
+    return pokemons
 
   } catch (error) {
 
     console.log('hande page loaded', error)
   }
+}
+
+const renderPokemons = pokemons =>{
+  const ul = document.querySelector('[data-js="pokemons-list"]')
+  const fragment = document.createDocumentFragment()
+  
+
+  pokemons.forEach(({ id, name, types, imgUrl }) => {
+    const li = document.createElement('li')
+    const img = document.createElement('img')
+    const nameContainer = document.createElement('h2')
+    const typeContainer = document.createElement('p')
+    const [firstType] = types
+
+    img.setAttribute('src', imgUrl)
+    img.setAttribute('alt', name)
+    img.setAttribute('class', 'card-image')
+    li.setAttribute('class',`card ${firstType}`)
+    li.style.setProperty('--type-color',getTypeColor(firstType))
+
+    nameContainer.textContent = `${id}. ${name[0].toUpperCase()}${name.slice(1)}`
+    typeContainer.textContent = types.length > 1 ? types.join ( ' | ' ) : firstType
+    li.append(img, nameContainer, typeContainer)
+    
+    fragment.append(li)
+    // console.log(name)
+  });
+   ul.append(fragment)
+}
+const observeLastPokemon = pokemonsObserver => {
+  const lastPokemon = document.querySelector('[data-js="pokemons-list"]').lastChild
+  pokemonsObserver.observe(lastPokemon)
+}
+const handleNextPokemonsRender = () =>{
+  const pokemonsObserver = new IntersectionObserver(async ([lastPokemon], observer) => {
+    if(!lastPokemon.isIntersecting){
+      return
+    }
+    observer.unobserve(lastPokemon.target)
+
+    if(offset === 150){
+      return
+    }
+
+    const pokemons = await getPokemons()
+    renderPokemons(pokemons)
+    console.log('executa uma acao ai meu patrao')
+    observeLastPokemon(pokemonsObserver)
+  })
+  observeLastPokemon(pokemonsObserver)
+}
+
+const handlePageLoaded = async () => {
+ const pokemons = await getPokemons()
+ renderPokemons(pokemons)
+ handleNextPokemonsRender()
   
 };
 
