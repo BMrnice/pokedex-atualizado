@@ -45,11 +45,23 @@ const getPokemonsTypes = async pokeApiResults => {
    return pokemons.map(fulfilled => fulfilled.types.map(info => DOMPurify.sanitize(info.type.name)))
 }
 
-const limit = 15
-let offset =  0
-const getPokemons = async url => {
+const paginationInfo = (() => {
+  const limit = 15
+  let offset =  0
+
+  const getLimit = () => limit
+  const getOffset = () => offset
+  const incrementOffset = () => offset += limit
+
+  return { getLimit, getOffset, incrementOffset  }
+})()
+
+
+
+const getPokemons = async () => {
   try {
-    const response = await fetch (`https://pokeapi.co/api/v2/pokemon?limit=${limit}&offset=${offset}`)
+    const { getLimit, getOffset, incrementOffset } = paginationInfo
+    const response = await fetch (`https://pokeapi.co/api/v2/pokemon?limit=${getLimit()}&offset=${getOffset()}`)
 
     if(!response.ok){
       throw new Error('fudeu')
@@ -61,7 +73,7 @@ const getPokemons = async url => {
     const imgs = await getPokemonsImgs(ids)
     const pokemons = ids.map((id, i)=>  ({id, name: pokeApiResults[i].name, types: types[i], imgUrl: imgs[i]}))
   
-    offset += limit
+    incrementOffset()
     return pokemons
 
   } catch (error) {
@@ -108,7 +120,7 @@ const handleNextPokemonsRender = () =>{
     }
     observer.unobserve(lastPokemon.target)
 
-    if(offset === 150){
+    if(paginationInfo.getOffset() === 150){
       return
     }
 
@@ -116,7 +128,7 @@ const handleNextPokemonsRender = () =>{
     renderPokemons(pokemons)
     console.log('executa uma acao ai meu patrao')
     observeLastPokemon(pokemonsObserver)
-  })
+  }, {rootMargin: '100px'})
   observeLastPokemon(pokemonsObserver)
 }
 
